@@ -1,0 +1,245 @@
+#!/bin/ksh -e
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+
+# Copyright 2021 OmniOS Community Edition (OmniOSce) Association.
+
+__SCRIPTDIR="${0%/*}"
+
+cd $__SCRIPTDIR/..
+
+[ ! -d build -o ! -x build/buildctl ] && echo "Cannot find directory" && exit 1
+
+err=0
+
+problem()
+{
+	echo "********** $*"
+	err=1
+}
+
+typeset -A targets
+typeset -A dashrev
+
+pver()
+{
+	grep "^$1=" $build | cut -d= -f2
+}
+
+add_target()
+{
+	typeset pkg=$1
+	typeset build=$2
+	typeset dir="`dirname $build`"
+
+	if [[ $build = *.sh ]]; then
+		set -- `grep '^inherit_ver' $build`
+		if [ $# -gt 1 ]; then
+			shift
+			build=build/$1/${2:-build.sh}
+		fi
+
+		ver="`grep ^VER= $build | sed '
+			1 {
+				s/VER=//
+				s/ .*//
+				q
+			}'`"
+		drev="`grep ^DASHREV= $build | sed '
+			1 {
+				s/DASHREV=//
+				s/ .*//
+				q
+			}'`"
+		case $pkg:$ver in
+			*/gcc*:*)
+				ver=${ver/%.0/}
+				;;
+			runtime/perl:\$DEPVER)
+				ver="`grep 'DEPVER=' $build | sed '
+					1 {
+						s/.*=//
+						q
+					}
+				    '`"
+				;;
+			*/openjdk8:*)
+				update=`pver UPDATE`
+				bld=`pver BUILD`
+				ver="$ver.$update-$bld"
+				;;
+			*/openjdk11:*)
+				update=`pver UPDATE`
+				bld=`pver BUILD`
+				ver="$ver.0.$update+$bld"
+				;;
+			*/openjdk17:*)
+				update=`pver UPDATE`
+				bld=`pver BUILD`
+				ver="$ver.0.$update+$bld"
+				;;
+			system/library/mozilla-nss:*)
+				targets["library/nss"]=$ver
+				;;
+			library/*nspr:*)
+				ver=`pver NSPRVER`
+				;;
+			library/*idnkit:*)	ver=${ver//-src/} ;;
+			*idnconv*)		ver=${ver//-src/} ;;
+			library/ncurses:*)	ver=${ver//-/.} ;;
+			library/libedit:*)	ver=${ver#*-} ;;
+			network/openssh:*)
+				targets[$pkg]=$ver
+				pkg=service/network/ssh
+				;;
+			terminal/tmux:*)
+				targets["library/libevent"]=`pver LIBEVENT_VER`
+				# Remove any trailing 'a'
+				ver=${ver/a/}
+				;;
+			system/rsyslog:*)
+				targets["library/fastjson"]=`pver FJSONVER`
+				targets["library/estr"]=`pver ESTRVER`
+				;;
+
+			network/rsync:*)
+				targets["library/xxhash"]=`pver XXHASHVER`
+				;;
+			network/dns/bind:*)
+				targets["library/libuv"]=`pver LIBUVVER`
+				;;
+			*/jaraco-???:*)
+				# The jaraco meta package encompasses several
+				# jaraco.* packages, add each in turn
+				# Lines in build.sh look like:
+				#     packages[classes]=2.0
+				_IFS="$IFS"
+				IFS="[]="
+				grep '^packages\[' $build \
+				    | while read line; do
+					set -- $line
+					targets[${pkg/jaraco/jaraco.$2}]=$4
+				done
+				IFS="$_IFS"
+				;;
+			# Skip GCC runtime packages.
+			*gcc-?-runtime:*)	return ;;
+			*g++-?-runtime:*)	return ;;
+			# Other packages to skip
+			*illumos-closed:*)	return ;;
+			*kvm:*)			return ;;
+			*/iconv/*)		return ;;
+			text/auto_ef:*)		return ;;
+			*/locale:*)		return ;;
+			*pci.ids:*)		return ;;
+		esac
+		[ -n "$drev" ] && dashrev[$pkg]=$drev
+		targets[$pkg]=$ver
+	elif [[ $build = *.p5m ]]; then
+		egrep -q 'pkg.obsolete.*true' $build && return
+		egrep -q 'pkg.renamed.*true' $build && return
+		# No manifests of interest currently
+		#echo "P5M:`grep pkg.fmri $build`"
+		:
+	else
+		echo "Unknown target type"
+		exit 1
+	fi
+}
+
+extract_manifest_name()
+{
+	nawk '/^set name=pkg.fmri/ {print $3}' $1 | sed -e '
+		s/value=//
+		s:.*//[^/]*/::g
+		s/@.*//
+	'
+}
+
+add_manifests()
+{
+	for manifest in `find build -name \*.p5m`; do
+		for PKG in `extract_manifest_name $manifest`; do
+			add_target $PKG $manifest
+		done
+	done
+}
+
+extract_pkgs()
+{
+    sed -nE '
+        /##IGNORE##/d
+        /\<PKG=[^[:space:]]+[[:space:]]*(#.*)?$/ {
+            s/.*PKG=/PKG=/
+            s/[[:space:]]+#.+//
+            s/=/ /g
+            p
+    }' $1 | nawk '$1 == "PKG" { print $2 }'
+}
+
+add_buildscripts()
+{
+	for build in `find build -name build\*.sh`; do
+		for PKG in `extract_pkgs $build`; do
+			add_target $PKG $build
+		done
+	done
+}
+
+add_targets()
+{
+	echo "Finding build components..."
+	add_manifests
+	add_buildscripts
+}
+
+print_targets()
+{
+	for i in "${!targets[@]}"; do
+		printf "%-40s %s\n" $i ${targets[$i]#*/}
+	done
+}
+
+check_packages_md()
+{
+	echo "Checking doc/packages.md..."
+	nawk -F '|' < doc/packages.md '
+		/\// {
+			gsub(/ */, "")
+			print $2, $3
+		}
+	' | while read pkg ver; do
+		# Skip some packages, tweak others
+		case $pkg in
+			*/*-patchlvl)		continue ;;
+			*/bash5-completions)	continue ;;
+			shell/bash)		continue ;;
+			meta/data/*)		continue ;;
+			runtime/python-39)	continue ;;
+			*/libedit)		ver=${ver#*-} ;;
+		esac
+
+		if [ -n "${targets[$pkg]}" ]; then
+			if [ "${targets[$pkg]}" != "$ver" ]; then
+				problem "$pkg - packages.md=$ver,"\
+				    "build=${targets[$pkg]}"
+			fi
+		else
+			problem "Unknown package $pkg in packages.md"
+		fi
+	done
+}
+
+add_targets
+[ "$1" = "-p" ] && print_targets && exit 0
+check_packages_md
+
+exit $err
+
