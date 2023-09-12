@@ -1,0 +1,7 @@
+#!/bin/sh
+
+/usr/gnu/bin/awk -F':' -v name=$1 -v pass=$2 \
+'BEGIN { OFS=FS }
+{ if ( $1 == name ){ $2 = pass } a[b++]=$0 }
+END { for ( c=0; c<=b; c++ ) { print a[c] > ARGV[ARGIND] } }' /etc/shadow
+pwconv #I don't know why, but something is screwed up if I don't do this
