@@ -1,0 +1,6 @@
+
+<transform file path=.*/home-config.sh -> set mode 0700>
+<transform file path=.*/home-config.sh -> set owner root>
+<transform file path=.*/home-config.sh -> set group bin>
+
+license LICENSE license=modified-BSD
