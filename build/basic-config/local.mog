@@ -1,0 +1,9 @@
+
+<transform file path=.*/base-config.sh -> set mode 0700>
+<transform file path=.*/base-config.sh -> set owner root>
+<transform file path=.*/base-config.sh -> set group bin>
+
+<transform dir path=boot$ -> drop>
+<transform dir path=boot/conf.d$ -> drop>
+
+license LICENSE license=modified-BSD

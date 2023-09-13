@@ -1,0 +1,5 @@
+boot_serial="YES"
+comconsole_speed="9600"
+osconsole="ttya"
+console="ttya"
+ttya-mode="9600,8,n,1,-"
