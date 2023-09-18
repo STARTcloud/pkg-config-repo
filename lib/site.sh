@@ -1,0 +1,71 @@
+#
+# This is an example site.sh file for the OmniOS build system.
+# Copy it to lib/site.sh and customise as necessary.
+#
+# To view current configuration, 'cd build; ./buildctl config'
+#
+
+# The web server or local directory from which source files are fetched.
+#MIRROR=https://mirrors.omniosce.org
+
+# Package publisher
+PKGPUBLISHER=STARTcloud
+PUBLISHER_EMAIL=support@startcloud.com
+
+# Repository in which built packages are placed
+# ROOTDIR is the root of the omnios-build checkout.
+PKGSRVR=http://localhost/
+GITHUB=https://github.com/STARTcloud
+
+# Location of a pre-built illumos tree; this is required to build some packages
+#PREBUILT_ILLUMOS=$HOME/build/prebuild
+
+# The production IPS repository for this branch; used for package contents diff
+IPS_REPO=http://localhost/
+
+# TMPDIR is used for source archives and build directories
+# DTMPDIR is used for constructing package file trees for publication
+#TMPDIR=/tmp/build_$USER
+#DTMPDIR=$TMPDIR
+
+# Command used for privilege escalation (defaults to 'sudo')
+PFEXEC=pfexec
+
+# If you want to build as root (not recommended), set these:
+#ROOT_OK=1
+#export FORCE_UNSAFE_CONFIGURE=1
+
+# To avoid building the kayak-kernel package (requires privilege escalation)
+# uncomment the following line.
+#SKIP_KAYAK_KERNEL=1
+
+# If you want other running jobs to be allowed to continue to completion when
+# a build error is detected, set this.
+#NOKILL_ON_ERROR=1
+
+# If you want the entire build to attempt to continue to completion when
+# a build error is detected, set this.
+#NOABORT_ON_ERROR=1
+
+# To use a proxy for source code retrieval.
+#export http_proxy=http://192.168.1.1:8080/
+#export https_proxy=http://192.168.1.1:8080/
+
+# To flag packages as expensive to avoid building them by default:
+#EXPENSIVE="
+#	developer/gcc7
+#	developer/gcc10
+#	developer/gcc11
+#	developer/gcc12
+#	developer/java/openjdk8
+#	runtime/java/openjdk8
+#	runtime/java/openjdk11
+#	runtime/java/openjdk17
+#"
+
+# Throttle the number of expensive packages that can be built in parallel
+#ETHROTTLE=3
+
+# To always use the ccache engine to speed up re-compilation
+#USE_CCACHE=1
+
