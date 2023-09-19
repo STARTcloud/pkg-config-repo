@@ -28,7 +28,7 @@
 . ../../lib/functions.sh
 
 PROG=home-config # App name
-VER=1.0            # App version
+VER=1.1            # App version
 VERHUMAN=$VER   # Human-readable version
 #PVER=          # Branch (set in config.sh, override here if needed)
 PKG=home-config  # Package name (e.g. library/foo)
