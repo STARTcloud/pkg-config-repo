@@ -11,6 +11,9 @@ svccfg -s $SMF_FMRI refresh
 
 echo "Fixing home directories"
 
+# remove path from default user profile
+sed -i '/PATH/d' /etc/skel/.profile
+
 # remove /home from automounter control
 if grep -v "^#" /etc/auto_master | grep -q auto_home
 then
